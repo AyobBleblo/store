@@ -25,12 +25,12 @@ class Customer(models.Model):
     membership = models.CharField(
         max_length=1, choices=MEMBERSHIP_CHOICES, default=MEMBERSHIP_BRONZE)
 
-    class Meta:
-        db_table = 'store_customers'
-        ordering = ['first_name', 'last_name']
-        indexes = [
-            models.Index(fields=['first_name', 'last_name']),
-        ]
+    # class Meta:
+    #     db_table = 'store_customers'
+    #     ordering = ['first_name', 'last_name']
+    #     indexes = [
+    #         models.Index(fields=['first_name', 'last_name']),
+    #     ]
 
 class Store(models.Model):
     name = models.CharField(max_length=255)
