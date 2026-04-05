@@ -1,3 +1,23 @@
-.md
-.venv
+# Visual Studio Code
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# database
 db.sqlite3
+
+# Markdown (from user's previous ignore)
+*.md
+
+# Migrations
+**/migrations/*
+!**/migrations/__init__.py
