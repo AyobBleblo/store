@@ -4,6 +4,9 @@ from django.db import models
 class Promotion(models.Model):
     description = models.CharField(max_length=255)
     discount = models.DecimalField(max_digits=10, decimal_places=2)
+    class Meta:
+        db_table = 'store_promotion'
+    
 
 
 class Customer(models.Model):
@@ -25,18 +28,24 @@ class Customer(models.Model):
     membership = models.CharField(
         max_length=1, choices=MEMBERSHIP_CHOICES, default=MEMBERSHIP_BRONZE)
 
-    # class Meta:
-    #     db_table = 'store_customers'
-    #     ordering = ['first_name', 'last_name']
-    #     indexes = [
-    #         models.Index(fields=['first_name', 'last_name']),
-    #     ]
+    class Meta:
+        db_table = 'store_customers'
+        ordering = ['first_name', 'last_name']
+        indexes = [
+            models.Index(fields=['first_name', 'last_name']),
+        ]
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
 
 class Store(models.Model):
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(
         Customer, on_delete=models.CASCADE, related_name='stores')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'store_store'
 
     def __str__(self):
         return self.name
@@ -46,12 +55,17 @@ class Collection(models.Model):
     title = models.CharField(max_length=255)
     store = models.ForeignKey(
         Store, on_delete=models.CASCADE, null=True, blank=True)
+    featured_product = models.ForeignKey(
+        'Product', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['title']
+        db_table = 'store_collection'
 
     def __str__(self):
         if self.store:
             return f"{self.title} (Custom: {self.store.name})"
         return f"{self.title} (Global)"
-
 
 class Product(models.Model):
     title = models.CharField(max_length=255)
@@ -64,6 +78,14 @@ class Product(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.PROTECT)
     is_featured = models.BooleanField(default=False)
     promotions = models.ManyToManyField(Promotion, blank=True)
+    
+    def __str__(self):
+        return  f"{self.title}"
+    
+
+    class Meta:
+        ordering = ['title']
+        db_table = 'store_product'
 
 
 class Order(models.Model):
@@ -82,13 +104,23 @@ class Order(models.Model):
         max_length=1, choices=PAYMENT_STATUS_CHOICES, default=PAYMENT_STATUS_PENDING)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
 
+    class Meta:
+        db_table = 'store_order'
+
+    def __str__(self):
+        return f"Order {self.id} - {self.customer.first_name} {self.customer.last_name} payment_status: {self.payment_status}"
+
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(
-        Order, on_delete=models.PROTECT, related_name='items')
+        Order, on_delete=models.PROTECT)
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     quantity = models.PositiveSmallIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        db_table = 'store_orderitem'
 
 
 class Address(models.Model):
@@ -100,12 +132,17 @@ class Address(models.Model):
     zip_code = models.CharField(max_length=255, null=True)
     is_default = models.BooleanField(default=False)
 
+    class Meta:
+        db_table = 'store_address'
+
 
 class Cart(models.Model):
     user = models.OneToOneField(
         Customer, on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        db_table = 'store_cart'
 
 class CartItem(models.Model):
     cart = models.ForeignKey(
@@ -114,4 +151,5 @@ class CartItem(models.Model):
     quantity = models.PositiveSmallIntegerField()
 
     class Meta:
+        db_table = 'store_cartitem'
         unique_together = [['cart', 'product']]

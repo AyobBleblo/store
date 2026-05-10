@@ -36,10 +36,13 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     "django.contrib.admin",
+    "django.contrib.sessions",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "debug_toolbar",
     "playgrounde",
     "tags",
     "store_",
@@ -47,6 +50,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -89,6 +93,9 @@ DATABASES = {
         "PORT": os.getenv("DB_PORT"),
     }
 }
+INTERNAL_IPS = [
+    "127.0.0.1",
+]
 
 
 # Password validation
@@ -121,8 +128,19 @@ USE_I18N = True
 
 USE_TZ = True
 
+def show_toolbar(request):
+    return True # هكي حتظهر للكل،Chrome و Brave وغيرهم
 
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": show_toolbar,
+    "INSERT_BEFORE": "</body>", # تأكد إن الـ HTML بتاعك فيه هذا الوسم
+    "RENDER_PANELS": True, 
+}
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+
+REST_FRAMEWORK = {
+    'COERCE_DECIMAL_TO_STRING' : False
+}
