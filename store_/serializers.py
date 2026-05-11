@@ -1,18 +1,21 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Product ,Collection , Store , Customer
+from .models import Product, Collection, Store, Customer
 
-class ProductSerializer(serializers.ModelSerializer):
+
+class ProductSerializerWithExtraDetails(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'title', 'inventory','unit_price','price_with_tax' , 'collection','store']
+        fields = ['id', 'title', 'inventory', 'unit_price',
+                  'price_with_tax', 'collection', 'store']
 
-    price_with_tax = serializers.SerializerMethodField(method_name='get_price_with_tax')
+    price_with_tax = serializers.SerializerMethodField(
+        method_name='get_price_with_tax')
     collection = serializers.HyperlinkedRelatedField(
         queryset=Collection.objects.all(),
         view_name='collection_details',
     )
-    store= serializers.HyperlinkedRelatedField(
+    store = serializers.HyperlinkedRelatedField(
         queryset=Store.objects.all(),
         view_name='store-sum-avg-max-price',
     )
@@ -21,21 +24,17 @@ class ProductSerializer(serializers.ModelSerializer):
         return product.unit_price * Decimal('1.1')
 
 
-
-
-
 class CollectionSerializer(serializers.ModelSerializer):
-    products = ProductSerializer(
-    many=True,
-    source='product_set'
-    )
-
-    title = serializers.CharField()
+    products_count = serializers.SerializerMethodField(method_name='get_products_count')
     store = serializers.StringRelatedField()
 
     class Meta:
         model = Collection
-        fields = ['title' , 'store' , 'products']
+        fields = ['id', 'title', 'store', 'products_count']
+    
+    def get_products_count(self, collection: Collection):
+        return collection.product_set.count()
+
 
 class CustomerSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField()
@@ -47,21 +46,26 @@ class CustomerSerializer(serializers.ModelSerializer):
     membership = serializers.CharField()
 
     orders = serializers.StringRelatedField(
-    many=True,
-    source='order_set'
-)
+        many=True,
+        source='order_set'
+    )
+
     class Meta:
         model = Customer
-        fields = ['id', 'first_name', 'last_name','email','phone','created_at','membership' , 'orders']
+        fields = ['id', 'first_name', 'last_name', 'email',
+                  'phone', 'created_at', 'membership', 'orders']
+
 
 class StoreSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     owner = serializers.StringRelatedField()
     created_at = serializers.DateTimeField()
+
     class Meta:
         model = Store
-        fields = ['id', 'name', 'owner','created_at']
+        fields = ['id', 'name', 'owner', 'created_at']
+
 
 class StoreProductsSerializer(serializers.ModelSerializer):
     owner_name = serializers.StringRelatedField(
@@ -78,6 +82,7 @@ class StoreProductsSerializer(serializers.ModelSerializer):
             'products_number'
         ]
 
+
 class StoreWithCollectionsAndProductsSerializer(serializers.ModelSerializer):
 
     collections_count = serializers.IntegerField()
@@ -91,12 +96,13 @@ class StoreWithCollectionsAndProductsSerializer(serializers.ModelSerializer):
             'products_count',
             'collections_count'
         ]
+
+
 class StoreSumAvgMacPriceSerializer(serializers.ModelSerializer):
 
     total_inventory = serializers.IntegerField()
     average_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     max_price = serializers.DecimalField(max_digits=10, decimal_places=2)
-
 
     class Meta:
         model = Store
