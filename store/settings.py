@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -41,12 +42,15 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_filters",
     "rest_framework",
+    "djoser",
     "debug_toolbar",
     "playgrounde",
     "tags",
     "store_",
     "likes",
+    "core",
 ]
 
 MIDDLEWARE = [
@@ -129,11 +133,11 @@ USE_I18N = True
 USE_TZ = True
 
 def show_toolbar(request):
-    return True # هكي حتظهر للكل،Chrome و Brave وغيرهم
+    return True 
 
 DEBUG_TOOLBAR_CONFIG = {
     "SHOW_TOOLBAR_CALLBACK": show_toolbar,
-    "INSERT_BEFORE": "</body>", # تأكد إن الـ HTML بتاعك فيه هذا الوسم
+    "INSERT_BEFORE": "</body>", 
     "RENDER_PANELS": True, 
 }
 # Static files (CSS, JavaScript, Images)
@@ -142,5 +146,22 @@ DEBUG_TOOLBAR_CONFIG = {
 STATIC_URL = "static/"
 
 REST_FRAMEWORK = {
-    'COERCE_DECIMAL_TO_STRING' : False
+    'COERCE_DECIMAL_TO_STRING' : False,
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+SIMPLE_JWT = {
+    'AUTH_HEADER_TYPES': ('JWT',),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
+
+AUTH_USER_MODEL = 'core.User'
+
+DJOSER = {
+    'SERIALIZERS': {
+        'user_create': 'core.serializers.UserRegistrationSerializer',
+        'current_user': 'core.serializers.UserSerializer',
+    }
 }

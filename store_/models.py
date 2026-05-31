@@ -1,5 +1,8 @@
+import uuid
 from django.db import models
-
+from django.core.validators import MinValueValidator
+from django.conf import settings
+from django.contrib import admin
 
 class Promotion(models.Model):
     description = models.CharField(max_length=255)
@@ -19,24 +22,31 @@ class Customer(models.Model):
         (MEMBERSHIP_SILVER, 'Silver'),
         (MEMBERSHIP_GOLD, 'Gold'),
     ]
-    first_name = models.CharField(max_length=255)
-    last_name = models.CharField(max_length=255)
+
     birth_date = models.DateField(null=True)
-    email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
     membership = models.CharField(
         max_length=1, choices=MEMBERSHIP_CHOICES, default=MEMBERSHIP_BRONZE)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
         db_table = 'store_customers'
-        ordering = ['first_name', 'last_name']
-        indexes = [
-            models.Index(fields=['first_name', 'last_name']),
-        ]
+        ordering = ['user__first_name', 'user__last_name']
+        permissions = [(
+            'view_history', 'Can view history'
+        )]
+        
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.user.first_name} {self.user.last_name}"
+    @admin.display(ordering='user__first_name')
+    def first_name(self):
+        return self.user.first_name
+    @admin.display(ordering='user__last_name')
+    def last_name(self):
+        return self.user.last_name
 
 class Store(models.Model):
     name = models.CharField(max_length=255)
@@ -63,10 +73,8 @@ class Collection(models.Model):
         db_table = 'store_collection'
 
     def __str__(self):
-        if self.store:
-            return f"{self.title} (Custom: {self.store.name})"
-        return f"{self.title} (Global)"
-
+        return f"{self.title}"
+        
 class Product(models.Model):
     title = models.CharField(max_length=255)
     slug = models.SlugField()
@@ -105,6 +113,9 @@ class Order(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
 
     class Meta:
+        permissions = [
+            ('cancel_order', 'Can cancel order')
+            ]
         db_table = 'store_order'
 
     def __str__(self):
@@ -114,7 +125,7 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     order = models.ForeignKey(
-        Order, on_delete=models.PROTECT)
+        Order, on_delete=models.PROTECT , related_name='items')
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     quantity = models.PositiveSmallIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -137,6 +148,7 @@ class Address(models.Model):
 
 
 class Cart(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     user = models.OneToOneField(
         Customer, on_delete=models.CASCADE, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -148,8 +160,20 @@ class CartItem(models.Model):
     cart = models.ForeignKey(
         Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveSmallIntegerField()
+    quantity = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
 
     class Meta:
         db_table = 'store_cartitem'
         unique_together = [['cart', 'product']]
+
+
+class Review(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    description = models.TextField()
+    rating = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'store_review'

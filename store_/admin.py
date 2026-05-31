@@ -23,10 +23,12 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ['first_name','last_name','email','membership','order_count']
+    list_display = ['first_name','last_name','membership','order_count', 'history_link']
     list_editable = ['membership']
     list_per_page = 10
-    search_fields = ['first_name__istartswith','last_name__istartswith']
+    list_select_related = ['user']
+    search_fields = ['user__first_name__istartswith','user__last_name__istartswith']
+    
     def order_count(self,customer):
         return customer.order_count
     
@@ -35,6 +37,14 @@ class CustomerAdmin(admin.ModelAdmin):
         return super().get_queryset(request).annotate(
             order_count=Count('order')
         )
+    
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm('store_.view_history')
+
+    @admin.display(description='History')
+    def history_link(self, customer):
+        url = reverse('admin:store__customer_history', args=[customer.id])
+        return format_html('<a href="{}">History</a>', url)
     
 
     

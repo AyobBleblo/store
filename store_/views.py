@@ -1,119 +1,70 @@
-from rest_framework.generics import ListCreateAPIView
-from .venv.Lib.site-packages.rest_framework.generics import ListCreateAPIView
-from rest_framework import status
-from store_.serializers import StoreSumAvgMacPriceSerializer
 from django.db.models import Avg, Sum, Max, Count
-from store_.serializers import StoreWithCollectionsAndProductsSerializer
-from store_.serializers import StoreSerializer
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
+from rest_framework.decorators import action
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.viewsets import ModelViewSet , CreateDeleteViewSet
+from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, UpdateModelMixin
+from rest_framework.viewsets import GenericViewSet
 from rest_framework.views import APIView
+from rest_framework.filters import SearchFilter , OrderingFilter
 from rest_framework.response import Response
-from .serializers import ProductSerializerWithExtraDetails, CollectionSerializer, CustomerSerializer, \
-    StoreProductsSerializer
-from .models import Product, Collection, Customer, Order, OrderItem, Store
+from rest_framework.pagination import PageNumberPagination
+from store_.filter import ProductFilter
+from .permations import IsAdminOrReadOnly , ViewCustomerHistoryPermission
+from .serializers import CreateOrderSerializer, OrderItemSerializer, OrderSerializer, ProductSerializerWithExtraDetails, CollectionSerializer, CustomerSerializer, \
+    StoreProductsSerializer , ReviewSerializer , StoreSumAvgMacPriceSerializer,\
+    StoreWithCollectionsAndProductsSerializer ,StoreSerializer,CartSerializer,CartItemSerializer ,AddCartItemSerializer
+from .models import Product, Collection, Customer, Order, OrderItem, Store , Review,Cart,CartItem
+from .pagination import StandardResultsSetPagination
 
 
-class ProductList(ListCreateAPIView):  
+class ProductViewSet(ModelViewSet):
+    queryset = Product.objects.select_related(
+        'collection__store', 'store__owner').all()
+    serializer_class = ProductSerializerWithExtraDetails
+    filter_backends = [DjangoFilterBackend , SearchFilter , OrderingFilter]
+    pagination_class = StandardResultsSetPagination
+    permission_classes = [IsAdminOrReadOnly]
+    filterset_class = ProductFilter
+    search_fields = ['title' , 'description']
 
-    def get(self, request):
-        products = Product.objects.select_related(
-            'collection__store',
-            'store__owner'
-        ).all()
-        serializer = ProductSerializerWithExtraDetails(
-            products, many=True, context={'request': request})
-        return Response(serializer.data)
+    def get_serializer_context(self):
+        return {'request': self.request}
 
-    def post(self, request):
-        serializer = ProductSerializerWithExtraDetails(
-            data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def destroy(self,request, *args, **kwargs):
 
-
-class ProductDetail(APIView):
-    def get(self, request, pk):
-        product = get_object_or_404(Product, pk=pk)
-        serializer = ProductSerializerWithExtraDetails(
-            product, context={'request': request})
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        product = get_object_or_404(Product, pk=pk)
-        serializer = ProductSerializerWithExtraDetails(
-            product, data=request.data, partial=True, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-    def delete(self, request, pk):
-        product = get_object_or_404(Product, pk=pk)
-        if product.orderitem_set.count() > 0:
+        if OrderItem.objects.filter(product_id=kwargs['pk']).count() > 0:
             return Response({"error": "Product has order items"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-        product.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return super().destroy(request, *args, **kwargs)
 
+class CollectionViewSet(ModelViewSet):
 
-class CollectionList(APIView):
-    def get(self, request):
-        collections = Collection.objects.select_related('store').\
-            annotate(
-            products_count=Count('product'))
-        
-        serializer = CollectionSerializer(collections, many=True, context={'request': request})
-        return Response(serializer.data)
+    queryset = Collection.objects.prefetch_related(
+        Prefetch('product_set')).select_related('store').\
+        annotate(products_count=Count('product'))
 
-    def post(self, request):
+    serializer_class = CollectionSerializer
 
-        serializer = CollectionSerializer(
-            data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    permission_classes = [IsAdminOrReadOnly]
 
+    def get_serializer_context(self):
+        return {'request': self.request}
 
-class CollectionDetail(APIView):
-    def get(self, request, pk):
-        collection = get_object_or_404(
-            Collection.objects.prefetch_related(
-                Prefetch(
-                    'product_set',
-                    queryset=Product.objects.all()
-                )
-            ).select_related('store').annotate(
-                products_count=Count('product')),
-            pk=pk
-        )
-        serializer = CollectionSerializer(
-            collection, context={'request': request})
-        return Response(serializer.data)
-
-    def put(self, request, pk):
-        collection = get_object_or_404(Collection, pk=pk)
-        serializer = CollectionSerializer(
-            collection, data=request.data, partial=True, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-    def delete(self, request, pk):
-        collection = get_object_or_404(Collection, pk=pk)
+    def destroy(self,request, *args, **kwargs):
+        collection = get_object_or_404(Collection, pk=kwargs['pk'])
         if collection.product_set.count() > 0:
             return Response({"error": "Collection has products"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-        collection.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return super().destroy(request, *args, **kwargs)
 
 
-class CustomerOrderList(APIView):
-    def get(self, request):
-        customers = Customer.objects.filter(order__isnull=False).prefetch_related(
-            'order_set'
-        ).distinct()
-        serializer = CustomerSerializer(customers, many=True)
-        return Response(serializer.data)
-
+class CustomerOrderList(ModelViewSet):
+    queryset = Customer.objects.filter(order__isnull=False).distinct().prefetch_related(
+        'order_set')
+    serializer_class = CustomerSerializer
+    http_method_names = ['get']
 
 class CustomerStoreList(APIView):
     def get(self, request, id):
@@ -167,3 +118,78 @@ class StoreSumAvgMaxPrice(APIView):
         )
         serializer = StoreSumAvgMacPriceSerializer(store)
         return Response(serializer.data)
+
+class ReviewViewSet(ModelViewSet):
+    serializer_class = ReviewSerializer
+
+    def get_queryset(self):
+        return Review.objects.filter(product_id=self.kwargs['product_pk'])
+
+    def get_serializer_context(self):
+        return {'product_id' : self.kwargs['product_pk']}
+
+class CartViewSet(CreateDeleteViewSet):
+    queryset = Cart.objects.prefetch_related('items__product').all()
+    
+    serializer_class = CartSerializer
+
+class CartItemViewSet(ModelViewSet):
+    def get_queryset(self):
+        return CartItem.objects.filter(cart_id=self.kwargs['cart_pk']).select_related('product')
+    queryset = CartItem.objects.select_related('product').all()
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return AddCartItemSerializer
+        return CartItemSerializer
+
+    def get_serializer_context(self):
+        return {'cart_id': self.kwargs['cart_pk']}
+    
+
+class CustomerViewSet(ModelViewSet):
+    queryset = Customer.objects.select_related('user').all()
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAdminUser]
+
+    @action(detail=True,permission_classes=[ViewCustomerHistoryPermission])
+    def history(self, request, pk):
+        customer = get_object_or_404(Customer, pk=pk)
+        serializer = CustomerSerializer(customer)
+        return Response(serializer.data)
+
+        
+
+    @action(detail=False, methods=['GET', 'PUT'], permission_classes=[IsAuthenticated])
+    def me(self, request):
+        customer , created = Customer.objects.get_or_create(user_id=request.user.id)
+        if request.method == 'GET':
+            serializer = self.get_serializer(customer)
+            return Response(serializer.data)
+        elif request.method == 'PUT':
+            serializer = CustomerSerializer(customer, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+
+class OrderViewSet(ModelViewSet):
+    
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return CreateOrderSerializer
+        return OrderSerializer
+
+    def get_serializer_context(self):
+        return {'user_id': self.request.user.id}
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return Order.objects.select_related('customer__user').prefetch_related('items__product').all()
+        
+        customer_id,created = Customer.objects.only('id').get_or_create(user_id=self.request.user.id)
+        return Order.objects.filter(customer_id=customer_id)
+    
+
+    
